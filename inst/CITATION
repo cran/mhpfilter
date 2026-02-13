@@ -1,0 +1,47 @@
+citHeader("To cite mhpfilter in publications use:")
+
+bibentry(
+  bibtype  = "Manual",
+  title    = "mhpfilter: Modified Hodrick-Prescott Filter with Optimal Smoothing Parameter Selection",
+  author   = person("Muhammad", "Yaseen",
+                   email = "myaseen208@gmail.com",
+                   role = c("aut", "cre"),
+                   comment = c(ORCID = "0000-0002-5923-1714")),
+  year     = "2025",
+  note     = "R package version 0.1.0",
+  url      = "https://myaseen208.com/mhpfilter/",
+  textVersion = paste(
+    "Yaseen, M. (2025).",
+    "mhpfilter: Modified Hodrick-Prescott Filter with Optimal Smoothing Parameter Selection.",
+    "R package version 0.1.0.",
+    "https://myaseen208.com/mhpfilter/"
+  )
+)
+
+bibentry(
+  bibtype  = "Article",
+  title    = "On smoothing macroeconomic time series using the modified HP filter",
+  author   = c(
+    person("M. Ali", "Choudhary"),
+    person("M. Nadim", "Hanif",
+          email = "Nadeem.hanif@sbp.org.pk"),
+    person("Javed", "Iqbal",
+          email = "Javed.iqbal6@sbp.org.pk")
+  ),
+  journal  = "Applied Economics",
+  year     = "2014",
+  volume   = "46",
+  number   = "19",
+  pages    = "2205--2214",
+  doi      = "10.1080/00036846.2014.894631",
+  textVersion = paste(
+    "Choudhary, M.A., Hanif, M.N., & Iqbal, J. (2014).",
+    "On smoothing macroeconomic time series using the modified HP filter.",
+    "Applied Economics, 46(19), 2205-2214.",
+    "https://doi.org/10.1080/00036846.2014.894631"
+  )
+)
+
+citFooter(
+  "Please cite both the package and the original methodology paper when using mhpfilter in your research."
+)
