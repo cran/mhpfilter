@@ -1,0 +1,315 @@
+---
+title: "The filters: theory and computation"
+author: "Muhammad Yaseen"
+date: last-modified
+format:
+  html:
+    self-contained: true
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    highlight-style: pygments
+    code-tools: true
+    html-math-method: mathjax
+vignette: >
+  %\VignetteIndexEntry{The filters: theory and computation}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+{{< include _mhpfilter-macros.txt >}}
+
+```{r setup, include = FALSE}
+# HTML figures are drawn as PNG and kept as WebP: lossless, or lossy at quality 90 when that is less than half the
+# size. The PDF figures stay vector graphics. Any failure of magick (not installed, no WebP, or a broken
+# installation whose system libraries are missing) keeps the PNG
+webp <- function(path) {
+  if (knitr::is_latex_output() || !grepl(pattern = "[.]png$", x = path)) return(path)
+  tryCatch(
+      {
+        if (!requireNamespace("magick", quietly = TRUE) || !isTRUE(magick::magick_config()$webp)) return(path)
+        img <- magick::image_read(path)
+        out <- sub(pattern = "[.]png$", replacement = ".webp", x = path)
+        tmp <- tempfile(fileext = ".webp")
+        magick::image_write(
+            image   = img
+          , path    = out
+          , format  = "webp"
+          , quality = 100
+          , defines = c(`webp:lossless` = "true")
+          )
+        magick::image_write(image = img, path = tmp, format = "webp", quality = 90)
+        if (file.size(tmp) < file.size(out) / 2) file.copy(from = tmp, to = out, overwrite = TRUE)
+        unlink(c(path, tmp))
+        out
+      }
+    , error = function(e) path
+    )
+}
+knitr::opts_chunk$set(collapse = FALSE, comment = "", fig.width = 7, fig.height = 4.2,
+                      dev = if (knitr::is_latex_output()) "cairo_pdf" else "ragg_png", dpi = 96,
+                      fig.process = webp)
+if (requireNamespace("mhpfilter", quietly = TRUE)) library(mhpfilter) else
+  pkgload::load_all(export_all = FALSE, helpers = FALSE, quiet = TRUE)
+```
+
+# Abstract
+
+This vignette sets out what the three filters compute: the HP filter as a penalised least-squares problem, the
+criterion of the modified HP filter and the exact cross-validation it approximates, the weights, gains and
+end-point loss that measure the end-point bias, and the end-point schemes of the fully modified HP filter. It also
+says how the package computes them, in $O(T)$ operations per smoothing parameter.
+
+# The HP filter
+
+With the series $\vx = (x_1, \dots, x_T)^\top$ and the $(T - 2) \times T$ matrix $\mK$ of second differences (rows
+$(1, -2, 1)$), the trend minimises $\lVert\vx - \vg\rVert^2 + \lambda\lVert\mK\vg\rVert^2$, so
+$$
+\hat{\vg} = (\mI + \lambda\mA)^{-1}\vx = \mB\vx, \qquad \mA = \mK^\top\mK ,
+$$
+and $\hat{\vc} = \vx - \hat{\vg}$. Because $\mK\vone = \mathbf{0}$, every row of $\mB$ sums to one: the trend is a
+weighted average of the observations.
+
+**Computation.** $\mI + \lambda\mA$ is symmetric, positive definite and pentadiagonal. The package factors it as
+$\mL\mD\mL^\top$ with a unit lower-triangular $\mL$ of bandwidth two and solves in $O(T)$ operations; version
+0.1.0 solved a dense $T \times T$ system, $O(T^3)$, for every $\lambda$ of the search.
+
+# Choosing lambda from the data
+
+## The criterion of the modified HP filter
+
+McDermott (1997) chooses $\lambda$ by cross-validation: leave out one observation, predict it from the trend of the
+others, and sum the squared errors. Generalised cross-validation (Craven and Wahba 1979) replaces the
+leave-one-out errors by
+$$
+\mathrm{GCV}(\lambda) = \frac{T^{-1}\sum_t\left(x_t - \hat{g}_t(\lambda)\right)^2}{\left(1 - T^{-1}\tr\mB(\lambda)\right)^2}
+$$
+(Choudhary et al. 2014, eq. 5), and the papers and their code use the approximation
+$$
+\mathrm{GCV}(\lambda) \approx \frac{1}{T}\left(1 + \frac{2T}{\lambda}\right)\sum_t\left(x_t - \hat{g}_t(\lambda)\right)^2
+$$
+(their eq. 6, attributed to Silverman 1984). `mhp_filter()` minimises the approximation over
+$\lambda = 1, \dots,$ `max_lambda` by default, and the exact criterion with `criterion = "exact"`: the eigenvalues
+$\mu_i$ of $\mA$, computed once, give $\tr\mB(\lambda) = \sum_i (1 + \lambda\mu_i)^{-1}$ and the residual sum of
+squares for every $\lambda$ in $O(T)$ operations.
+
+## The two criteria on the US data
+
+```{r criteria}
+data(us_macro)
+x <- log(us_macro$gdp)
+ap <-
+  mhp_filter(
+      x          = x
+    , max_lambda = 20000
+    , as_dt      = FALSE
+    , log_scale  = FALSE
+    , criterion  = "approximate"
+    )
+ex <- suppressWarnings(
+  mhp_filter(
+      x          = x
+    , max_lambda = 20000
+    , as_dt      = FALSE
+    , log_scale  = FALSE
+    , criterion  = "exact"
+    )
+  )
+c(approximate = ap$lambda, exact = ex$lambda)
+```
+
+```{r criteria-plot, fig.height = 4}
+d <- data.table::data.table(
+    lambda    = rep(seq_len(length.out = 20000), 2)
+  , criterion = c(ap$gcv_path / min(ap$gcv_path), ex$gcv_path / min(ex$gcv_path))
+  , type      = rep(c("approximate (eq. 6)", "exact GCV (eq. 5)"), each = 20000)
+  )
+ggplot2::ggplot(data = d, mapping = ggplot2::aes(x = lambda, y = criterion, colour = type)) +
+  ggplot2::geom_line() +
+  ggplot2::scale_x_log10(breaks = scales::breaks_log(n = 6), labels = scales::label_comma()) +
+  ggplot2::labs(x = "lambda (log scale)", y = "criterion / its minimum", colour = NULL) +
+  mhp_theme(
+      base_size       = 11
+    , base_family     = "serif"
+    , ticks_inward    = TRUE
+    , legend_position = "bottom"
+    )
+```
+
+The exact criterion falls steadily as $\lambda$ falls, down to $\lambda = 1$, where the trend almost interpolates the
+series: generalised cross-validation is known to undersmooth series whose deviations from the trend are
+autocorrelated, as business cycles are. The approximation adds a much heavier penalty for small $\lambda$ (at
+$\lambda = 683$ the factor $1 + 2T/\lambda$ is `r round(1 + 2 * 203 / 683, 2)`, against
+`r round((1 - sum(1 / (1 + 683 * eigen(crossprod(diff(diag(203), differences = 2)), symmetric = TRUE, only.values = TRUE)$values)) / 203)^-2, 2)`
+for the exact one), and that penalty, not cross-validation as such, gives the modified HP filter its interior
+minimum. The package keeps the published approximation as the default.
+
+# The end-point bias
+
+## Weights
+
+Row $t$ of $\mB$ holds the weights of $\hat{g}_t$. In the middle of the series they are symmetric; near the ends
+they are not, and the end observation gets a large weight in its own trend (Hanif et al. 2017, Figure 1).
+
+```{r weights}
+w <-
+  hp_weights(
+      x      = 50
+    , lambda = 100
+    , form   = "rows"
+    , rows   = NULL
+    )
+plot(x = w)
+```
+
+## Gains
+
+The gain of $\hat{g}_t$ at frequency $\omega$,
+$$
+P_t(\omega) = \left|\sum_{j=1}^{T} b_{tj}\,e^{i\omega(j - t)}\right| ,
+$$
+is the factor by which the trend scales an oscillation of that frequency (eq. 6 of Hanif et al. 2017). In the middle
+the gain falls to zero at high frequencies; at the ends it does not, so the trend keeps part of the cycle.
+
+```{r gain}
+g <-
+  hp_gain(
+      x      = 50
+    , lambda = 100
+    , form   = "rows"
+    , theta  = seq(from = 0, to = pi, length.out = 101)
+    , rows   = NULL
+    )
+plot(x = g)
+```
+
+The package computes $\sum_j b_{tj}e^{i\omega j}$ for all $t$ at once as $\mB\cos(\omega\cdot)$ and
+$\mB\sin(\omega\cdot)$: two solves per frequency, without forming $\mB$.
+
+## Loss
+
+Bloechl (2014) measures the distortion by the distance of each gain from the gain at the centre $c$ of the series,
+$$
+l(t) = \theta\sum_{\omega}\left[P_c(\omega) - P_t(\omega)\right]^2, \qquad L = \sum_{t=1}^{T} l(t),
+$$
+with $\omega = 0, 0.1, \dots, 3.1$ and $\theta = 0.1$ (eqs. 7 and 8 of Hanif et al. 2017). It depends on $T$ and the
+smoothing parameters only.
+
+```{r loss}
+hl <-
+  hp_loss(
+      x      = 50
+    , lambda = 100
+    , form   = "rows"
+    , theta  = seq(from = 0, to = 3.1, by = 0.1)
+    , weight = 0.1
+    )
+plot(x = hl)
+```
+
+# The fully modified HP filter
+
+## End-point schemes
+
+Hanif et al. (2017) raise the smoothing parameter of the $k$ values at each end: $\lambda_t = \lambda$ in the middle
+and $\lambda + \alpha j^{i}$ for the $j$-th value from the middle, linear ($i = 1$) or quadratic ($i = 2$).
+
+```{r schedule}
+hp_schedule(
+    T      = 50
+  , lambda = 100
+  , alpha  = 10
+  , k      = 20
+  , power  = 1
+  , form   = "rows"
+  )
+```
+
+## Two forms of the weights
+
+The published MATLAB code multiplies row $t$ of $\mA$ by $\lambda_t$:
+$$
+\hat{\vg} = (\mI + \mathrm{diag}(\lambda_t)\mA)^{-1}\vx \qquad \text{(\texttt{form = "rows"}, the default)}.
+$$
+This matrix is not symmetric, but $\mI + \mathrm{diag}(\lambda_t)\mA = \mathrm{diag}(\lambda_t)
+(\mathrm{diag}(1/\lambda_t) + \mA)$, so the package solves the symmetric pentadiagonal system
+$(\mathrm{diag}(1/\lambda_t) + \mA)\hat{\vg} = \mathrm{diag}(1/\lambda_t)\vx$. The penalised least-squares problem
+with one smoothing parameter per second difference, $\lVert\vx - \vg\rVert^2 + \sum_r\lambda_r(\mK\vg)_r^2$, gives
+instead
+$$
+\hat{\vg} = (\mI + \mK^\top\mathrm{diag}(\lambda_r)\mK)^{-1}\vx \qquad \text{(\texttt{form = "differences"})},
+$$
+the form in which Bloechl (2014) and eq. 9 of the paper write the scheme. Both are $O(T)$; for a constant $\lambda$
+they coincide.
+
+```{r forms}
+y <- us_macro$gdp
+rows <-
+  fmhp_filter(
+      x               = y
+    , max_lambda      = 3000
+    , k_linear        = 15
+    , k_quadratic     = NULL
+    , alpha_linear    = seq(from = 0, to = 2000, by = 10)
+    , alpha_quadratic = seq(from = 0, to = 2000, by = 5)
+    , schemes         = c("linear", "quadratic")
+    , form            = "rows"
+    , lambda          = NULL
+    , log_scale       = TRUE
+    , as_dt           = FALSE
+    )
+diffs <-
+  fmhp_filter(
+      x               = y
+    , max_lambda      = 3000
+    , k_linear        = 15
+    , k_quadratic     = NULL
+    , alpha_linear    = seq(from = 0, to = 2000, by = 10)
+    , alpha_quadratic = seq(from = 0, to = 2000, by = 5)
+    , schemes         = c("linear", "quadratic")
+    , form            = "differences"
+    , lambda          = NULL
+    , log_scale       = TRUE
+    , as_dt           = FALSE
+    )
+rbind(
+    rows        = rows$schemes[scheme == rows$scheme]
+  , differences = diffs$schemes[scheme == diffs$scheme]
+  )
+```
+
+## The procedure
+
+1. $\lambda^{\mathrm{MHP}}$ of the modified HP filter.
+2. For the linear and the quadratic scheme, the weight $\alpha$ of a grid that minimises $L$ at $\lambda^{\mathrm{MHP}}$.
+3. With that $\alpha$, $\lambda^{\mathrm{FMHP}}$ minimising the criterion of the modified HP filter again.
+4. The scheme with the smaller loss in step 2 gives the trend and the cycle.
+
+The defaults are those of the MATLAB code: $\lambda \le 3000$; $k = 15$ and $\alpha \in \{0, 10, \dots, 2000\}$ for
+the linear scheme; $k = \mathrm{round}(\min(22, T/2 - 5))$ and $\alpha \in \{0, 5, \dots, 2000\}$ for the quadratic
+one; logarithms. The text of the paper states $k = 20$; `k_linear` and `k_quadratic` set it. MATLAB rounds halves
+up, and so does the package (the centre $c$ of the loss and the quadratic $k$); vignette 4 shows that this
+reproduces the published losses.
+
+# References
+
+Bloechl, A. (2014). Reducing the excess variability of the Hodrick-Prescott filter by flexible penalization.
+*Discussion Paper* 2014-1, University of Munich.
+
+Choudhary, M. A., Hanif, M. N. and Iqbal, J. (2014). On smoothing macroeconomic time series using the modified HP
+filter. *Applied Economics*, 46(19), 2205--2214.
+
+Craven, P. and Wahba, G. (1979). Smoothing noisy data with spline functions. *Numerische Mathematik*, 31, 377--403.
+
+Hanif, M. N., Iqbal, J. and Choudhary, M. A. (2017). Fully modified HP filter. *SBP Working Paper Series*, No. 88,
+State Bank of Pakistan.
+
+McDermott, C. J. (1997). An automatic method for choosing the smoothing parameter in the HP filter. Unpublished,
+International Monetary Fund.
+
+Silverman, B. W. (1984). A fast and efficient cross-validation method for smoothing parameter choice in spline
+regression. *Journal of the American Statistical Association*, 79(387), 584--589.

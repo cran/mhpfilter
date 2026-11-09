@@ -1,0 +1,32 @@
+% Notation of mhpfilter: the appendix used in articles and the reference for the help pages and vignettes.
+% Rule: scalars upper case in normal face; indices lower-case italic; vectors lower case in bold; matrices upper case
+% in bold; Greek letters follow the same rule (\boldsymbol for bold Greek); sets calligraphic; operators upright.
+% Generated from notation.csv by tools/notation-tex.R: edit the CSV, not this file.
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.28\textwidth}>{\raggedright\arraybackslash}p{0.66\textwidth}}
+\caption{Notation of \texttt{mhpfilter}.}\\
+\toprule
+Symbol & Meaning\\
+\midrule
+\endhead
+$T$ & number of observations (\texttt{x})\\
+$t$, $j$ & time and the observations weighted in the estimate at time t\\
+$\mathbf{x}$ & the series (its logarithm when log_scale = TRUE) (\texttt{x})\\
+$\mathbf{g}$ & trend\\
+$\mathbf{c}$ & cycle, x - g\\
+$\mathbf{K}$ & (T - 2) x T matrix of second differences\\
+$\mathbf{A}$ & penalty matrix K'K\\
+$\mathbf{I}$ & identity matrix\\
+$\mathbf{B}$ & smoother: g = B x; row t holds the weights of the estimate at t\\
+$\lambda$ & smoothing parameter (\texttt{lambda})\\
+$\lambda_t$ & smoothing parameter of observation t (or of second difference t) (\texttt{lambda\_t})\\
+$\alpha$ & end-point weight (\texttt{alpha\_linear})\\
+$k$ & number of end values with raised smoothing parameters (\texttt{k\_linear})\\
+$\omega$ & frequency (radians) (\texttt{theta})\\
+$P_t(\omega)$ & gain of the estimate at t\\
+$l(t)$, $L$ & end-point loss of the estimate at t, and its total\\
+$\theta$ & spacing of the frequencies in the loss (0.1) (\texttt{weight})\\
+$\mu_i$ & eigenvalues of A (exact GCV)\\
+$\phi_1$, $\phi_2$ & AR(2) coefficients of a simulated cycle (\texttt{ar})\\
+$\sigma_\varepsilon$, $\sigma_\delta$ & standard deviations of the trend and cycle shocks (\texttt{sd\_ratio})\\
+\bottomrule
+\end{longtable}

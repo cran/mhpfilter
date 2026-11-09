@@ -1,0 +1,213 @@
+---
+title: "The modified HP filter"
+author: "Muhammad Yaseen"
+date: last-modified
+format:
+  html:
+    self-contained: true
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    highlight-style: pygments
+    code-tools: true
+    html-math-method: mathjax
+vignette: >
+  %\VignetteIndexEntry{The modified HP filter}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+{{< include _mhpfilter-macros.txt >}}
+
+```{r setup, include = FALSE}
+# HTML figures are drawn as PNG and kept as WebP: lossless, or lossy at quality 90 when that is less than half the
+# size. The PDF figures stay vector graphics. Any failure of magick (not installed, no WebP, or a broken
+# installation whose system libraries are missing) keeps the PNG
+webp <- function(path) {
+  if (knitr::is_latex_output() || !grepl(pattern = "[.]png$", x = path)) return(path)
+  tryCatch(
+      {
+        if (!requireNamespace("magick", quietly = TRUE) || !isTRUE(magick::magick_config()$webp)) return(path)
+        img <- magick::image_read(path)
+        out <- sub(pattern = "[.]png$", replacement = ".webp", x = path)
+        tmp <- tempfile(fileext = ".webp")
+        magick::image_write(
+            image   = img
+          , path    = out
+          , format  = "webp"
+          , quality = 100
+          , defines = c(`webp:lossless` = "true")
+          )
+        magick::image_write(image = img, path = tmp, format = "webp", quality = 90)
+        if (file.size(tmp) < file.size(out) / 2) file.copy(from = tmp, to = out, overwrite = TRUE)
+        unlink(c(path, tmp))
+        out
+      }
+    , error = function(e) path
+    )
+}
+knitr::opts_chunk$set(collapse = FALSE, comment = "", fig.width = 7, fig.height = 4.2,
+                      dev = if (knitr::is_latex_output()) "cairo_pdf" else "ragg_png", dpi = 96,
+                      fig.process = webp)
+if (requireNamespace("mhpfilter", quietly = TRUE)) library(mhpfilter) else
+  pkgload::load_all(export_all = FALSE, helpers = FALSE, quiet = TRUE)
+```
+
+# Abstract
+
+This vignette works through the modified HP filter of Choudhary, Hanif and Iqbal (2014): the smoothing parameter
+chosen series by series by the generalised cross-validation of McDermott (1997). It applies the filter to the US
+quarterly series of the package, sets the results beside those of the paper, and shows how the criterion behaves.
+The data differ from the paper's (FRED 1959Q1 to 2009Q3 here; IFS 1957Q1 to 2010Q1 there), so the values are
+compared, not reproduced.
+
+# The idea
+
+The HP filter fixes $\lambda$ by the frequency of the data: 100 for annual, 1600 for quarterly and 129600 for
+monthly series. Choudhary et al. (2014) argue that one value cannot suit every series and every economy, and choose
+$\lambda$ for each series as the minimiser of
+$$
+\mathrm{GCV}(\lambda) = \frac{1}{T}\left(1 + \frac{2T}{\lambda}\right)\sum_{t=1}^{T}\left(x_t - \hat{g}_t(\lambda)\right)^2
+$$
+over $\lambda = 1, 2, \dots$ (their eq. 6). The vignette "Theory" derives this criterion and its exact form.
+
+# One series
+
+```{r gdp}
+data(us_macro)
+fit <-
+  mhp_filter(
+      x          = us_macro$gdp
+    , max_lambda = 100000
+    , as_dt      = FALSE
+    , log_scale  = TRUE
+    , criterion  = "approximate"
+    )
+fit
+```
+
+The criterion against $\lambda$ has a single interior minimum:
+
+```{r gdp-gcv}
+ggplot2::autoplot(
+    object = fit
+  , which  = "gcv"
+  )
+```
+
+and the trend and cycle:
+
+```{r gdp-decomp, fig.height = 5}
+ggplot2::autoplot(
+    object = fit
+  , which  = "decomposition"
+  )
+```
+
+# Three US series
+
+`mhp_batch()` filters the columns of a matrix, each with its own $\lambda$.
+
+```{r batch}
+X <- log(as.matrix(us_macro[, c("gdp", "consumption", "investment")]))
+b <-
+  mhp_batch(
+      X          = X
+    , max_lambda = 100000
+    )
+lam <- attr(x = b, which = "lambdas")
+lam[, paper := c(941, 841, 488)]
+lam
+```
+
+The column `paper` holds the values of Table 2 of Choudhary et al. (2014) for the United States. Ours are of the
+same order, below the 1600 of the HP filter, but differ series by series: the samples and the vintages of the data
+are not the same, and the criterion is flat near its minimum, so small changes in the data move $\lambda$ a long
+way. Investment has the largest $\lambda$ here and the smallest in the paper.
+
+```{r batch-plot, fig.height = 5}
+plot_batch(
+    x         = b
+  , show      = "cycle"
+  , facet     = TRUE
+  , highlight = NULL
+  )
+```
+
+# Against the HP filter
+
+`mhp_compare()` sets the cycle of the HP filter with the conventional $\lambda$ beside the cycle of the modified
+filter.
+
+```{r compare}
+mhp_compare(
+    x          = log(us_macro$gdp)
+  , frequency  = "quarterly"
+  , max_lambda = 100000
+  )
+```
+
+```{r compare-plot, fig.height = 5}
+plot_comparison(
+    x          = log(us_macro$gdp)
+  , frequency  = "quarterly"
+  , max_lambda = 100000
+  , show_cycle = TRUE
+  , fmhp       = FALSE
+  )
+```
+
+# How stable is the choice?
+
+Because $\lambda$ is estimated, it changes as data arrive. Refitting on samples that end in successive years shows
+how far:
+
+```{r stability}
+ends <- seq(from = 120, to = nrow(us_macro), by = 8)
+data.table::data.table(
+    T      = ends
+  , lambda = vapply(
+        X         = ends
+      , FUN       = function(n) {
+          get_lambda(
+              x = mhp_filter(
+                  x          = us_macro$gdp[seq_len(n)]
+                , max_lambda = 100000
+                , as_dt      = FALSE
+                , log_scale  = TRUE
+                , criterion  = "approximate"
+                )
+            )
+        }
+      , FUN.VALUE = numeric(length = 1)
+      )
+  )
+```
+
+# The simulation designs of the paper
+
+Choudhary et al. (2014) compare the filters on 30 simulated designs: a random-walk trend with drift and an AR(2)
+cycle, with six pairs of AR coefficients and five ratios of the standard deviations of the two shocks.
+`mhp_designs(paper = "2014")` lists them and `mhp_simulate()` draws a series from one of them; the vignette
+"Simulation" runs the comparison.
+
+```{r designs}
+mhp_designs(
+    paper = "2014"
+  )
+```
+
+# References
+
+Choudhary, M. A., Hanif, M. N. and Iqbal, J. (2014). On smoothing macroeconomic time series using the modified HP
+filter. *Applied Economics*, 46(19), 2205--2214.
+
+Hodrick, R. J. and Prescott, E. C. (1997). Postwar U.S. business cycles: an empirical investigation. *Journal of
+Money, Credit and Banking*, 29(1), 1--16.
+
+McDermott, C. J. (1997). An automatic method for choosing the smoothing parameter in the HP filter. Unpublished
+manuscript, International Monetary Fund.

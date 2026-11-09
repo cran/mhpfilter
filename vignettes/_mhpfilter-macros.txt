@@ -1,0 +1,33 @@
+::: {.content-visible when-format="html"}
+::: {.hidden}
+$$
+\newcommand{\vy}{\mathbf{y}}
+\newcommand{\vx}{\mathbf{x}}
+\newcommand{\vb}{\mathbf{b}}
+\newcommand{\ve}{\mathbf{e}}
+\newcommand{\vone}{\mathbf{1}}
+\newcommand{\vbeta}{\boldsymbol{\beta}}
+\newcommand{\vmu}{\boldsymbol{\mu}}
+\newcommand{\mX}{\mathbf{X}}
+\newcommand{\mZ}{\mathbf{Z}}
+\newcommand{\mV}{\mathbf{V}}
+\newcommand{\mI}{\mathbf{I}}
+\newcommand{\mJ}{\mathbf{J}}
+\newcommand{\mSigma}{\boldsymbol{\Sigma}}
+\newcommand{\vg}{\mathbf{g}}
+\newcommand{\vc}{\mathbf{c}}
+\newcommand{\vz}{\mathbf{z}}
+\newcommand{\vlambda}{\boldsymbol{\lambda}}
+\newcommand{\mA}{\mathbf{A}}
+\newcommand{\mB}{\mathbf{B}}
+\newcommand{\mK}{\mathbf{K}}
+\newcommand{\mD}{\mathbf{D}}
+\newcommand{\mL}{\mathbf{L}}
+\newcommand{\mQ}{\mathbf{Q}}
+\newcommand{\E}{\mathrm{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\Cov}{\mathrm{Cov}}
+\newcommand{\tr}{\operatorname{tr}}
+$$
+:::
+:::

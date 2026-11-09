@@ -1,0 +1,182 @@
+---
+title: "Validation and speed"
+author: "Muhammad Yaseen"
+date: last-modified
+format:
+  html:
+    self-contained: true
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    highlight-style: pygments
+    code-tools: true
+    html-math-method: mathjax
+vignette: >
+  %\VignetteIndexEntry{Validation and speed}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+{{< include _mhpfilter-macros.txt >}}
+
+```{r setup, include = FALSE}
+# HTML figures are drawn as PNG and kept as WebP: lossless, or lossy at quality 90 when that is less than half the
+# size. The PDF figures stay vector graphics. Any failure of magick (not installed, no WebP, or a broken
+# installation whose system libraries are missing) keeps the PNG
+webp <- function(path) {
+  if (knitr::is_latex_output() || !grepl(pattern = "[.]png$", x = path)) return(path)
+  tryCatch(
+      {
+        if (!requireNamespace("magick", quietly = TRUE) || !isTRUE(magick::magick_config()$webp)) return(path)
+        img <- magick::image_read(path)
+        out <- sub(pattern = "[.]png$", replacement = ".webp", x = path)
+        tmp <- tempfile(fileext = ".webp")
+        magick::image_write(
+            image   = img
+          , path    = out
+          , format  = "webp"
+          , quality = 100
+          , defines = c(`webp:lossless` = "true")
+          )
+        magick::image_write(image = img, path = tmp, format = "webp", quality = 90)
+        if (file.size(tmp) < file.size(out) / 2) file.copy(from = tmp, to = out, overwrite = TRUE)
+        unlink(c(path, tmp))
+        out
+      }
+    , error = function(e) path
+    )
+}
+knitr::opts_chunk$set(collapse = FALSE, comment = "", fig.width = 7, fig.height = 4.2,
+                      dev = if (knitr::is_latex_output()) "cairo_pdf" else "ragg_png", dpi = 96,
+                      fig.process = webp)
+if (requireNamespace("mhpfilter", quietly = TRUE)) library(mhpfilter) else
+  pkgload::load_all(export_all = FALSE, helpers = FALSE, quiet = TRUE)
+```
+
+# Abstract
+
+This vignette sets out how the results of the package are checked: against version 0.1.0, against direct dense
+computations, against the MATLAB code of the authors and against the published values. It ends with timings of
+this version against version 0.1.0.
+
+# Against version 0.1.0
+
+The results of every exported function of version 0.1.0 were saved before the rewrite (`dev/legacy`), and the test
+`test-legacy.R` compares the new results with them: the smoothing parameters are identical, and the trends, cycles
+and criteria agree to $10^{-8}$. The names of the functions, their arguments and the components of their results are
+kept; new arguments come after the old ones.
+
+# Against dense computations
+
+The package never forms the $T \times T$ smoothing matrix. Forming it shows that the banded solves give the same
+trend:
+
+```{r dense}
+x <- log(us_macro$gdp)
+T <- length(x)
+K <- diff(diag(T), differences = 2)
+A <- crossprod(K)
+fit <-
+  hp_filter(
+      x         = x
+    , lambda    = 1600
+    , as_dt     = FALSE
+    , log_scale = FALSE
+    )
+max(abs(solve(a = diag(T) + 1600 * A, b = x) - fit$trend))
+```
+
+The same holds for the fully modified filter, with the end-point weights it chose, in both forms:
+
+```{r dense-weights}
+for (form in c("rows", "differences")) {
+  f <-
+    fmhp_filter(
+        x               = x
+      , max_lambda      = 3000L
+      , k_linear        = 15L
+      , k_quadratic     = NULL
+      , alpha_linear    = seq(from = 0, to = 2000, by = 10)
+      , alpha_quadratic = seq(from = 0, to = 2000, by = 5)
+      , schemes         = c("linear", "quadratic")
+      , form            = form
+      , lambda          = NULL
+      , log_scale       = FALSE
+      , as_dt           = FALSE
+      )
+  M <- if (form == "rows") diag(T) + diag(f$lambda_t) %*% A else diag(T) + t(K) %*% diag(f$lambda_t) %*% K
+  cat(form, ":", max(abs(solve(a = M, b = x) - f$trend)), "\n")
+}
+```
+
+and the exact cross-validation computed from the eigenvalues of $\mA$ agrees with the trace of the dense smoothing
+matrix:
+
+```{r dense-gcv}
+lam <- 683
+B <- solve(diag(T) + lam * A)
+gcv_dense <- mean((x - B %*% x)^2) / (1 - sum(diag(B)) / T)^2
+ex <- suppressWarnings(
+  mhp_filter(
+      x          = x
+    , max_lambda = 2000
+    , as_dt      = FALSE
+    , log_scale  = FALSE
+    , criterion  = "exact"
+    )
+  )
+c(dense = gcv_dense, package = ex$gcv_path[lam])
+```
+
+# Against the MATLAB code
+
+The tests carry line-by-line ports of the MATLAB functions of Choudhary et al. (2014) and Hanif et al. (2017), with
+dense matrices and explicit loops (`tests/testthat/helper-matlab.R`). `mhp_filter()` returns the same smoothing parameter as the
+first on 80 quarters of US GDP, with trend and cycle to $10^{-9}$; `fmhp_filter()` returns the same smoothing
+parameters and weights as the second on a simulated series, with losses to $10^{-10}$ and trend to $10^{-8}$.
+
+# Against the published values
+
+```{r published}
+ref <-
+  mhp_reference(
+      source   = NULL
+    , evaluate = TRUE
+    , level    = 1
+    )
+ref[, .(id, value, computed = round(x = computed, digits = 3), agrees)]
+```
+
+The one row that does not agree is annotated in the file and discussed in the vignette "Reproducing the fully
+modified HP filter"; the test of published values skips annotated rows.
+
+# Speed
+
+Version 0.1.0 solved a dense $T \times T$ system for every $\lambda$ of the search, $O(T^3)$ operations each. This
+version factors the pentadiagonal system in $O(T)$, and in the search updates the bands in place. The timings below
+were taken by `tools/bench.R` on simulated series (median of repeated runs, milliseconds) and are stored with the
+package:
+
+```{r bench}
+b <- data.table::fread(system.file("extdata", "bench.csv", package = "mhpfilter"))
+w <- data.table::dcast(data = b, formula = case ~ version, value.var = "median_ms")
+v <- sort(unique(b$version))
+w[, speedup := round(get(v[1]) / get(v[2]))]
+w
+```
+
+The cases are `hp_filter()` and `mhp_filter()` with 200 and 500 observations, the search up to $\lambda = 100000$
+with 200 observations, and `mhp_batch()` with ten series of 200 observations. The gain grows with the length
+of the series, since the old cost per $\lambda$ grew as $T^3$ and the new one grows as $T$.
+
+# References
+
+Choudhary, M. A., Hanif, M. N. and Iqbal, J. (2014). On smoothing macroeconomic time series using the modified HP
+filter. *Applied Economics*, 46(19), 2205--2214.
+
+Hanif, M. N., Iqbal, J. and Choudhary, M. A. (2017). Fully modified HP filter. *SBP Working Paper Series*, No. 88,
+State Bank of Pakistan.

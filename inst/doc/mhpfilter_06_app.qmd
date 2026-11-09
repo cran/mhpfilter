@@ -1,0 +1,168 @@
+---
+title: "The application"
+author: "Muhammad Yaseen"
+date: last-modified
+format:
+  html:
+    self-contained: true
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    highlight-style: pygments
+    code-tools: true
+    html-math-method: mathjax
+vignette: >
+  %\VignetteIndexEntry{The application}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+{{< include _mhpfilter-macros.txt >}}
+
+```{r setup, include = FALSE}
+# HTML figures are drawn as PNG and kept as WebP: lossless, or lossy at quality 90 when that is less than half the
+# size. The PDF figures stay vector graphics. Any failure of magick (not installed, no WebP, or a broken
+# installation whose system libraries are missing) keeps the PNG
+webp <- function(path) {
+  if (knitr::is_latex_output() || !grepl(pattern = "[.]png$", x = path)) return(path)
+  tryCatch(
+      {
+        if (!requireNamespace("magick", quietly = TRUE) || !isTRUE(magick::magick_config()$webp)) return(path)
+        img <- magick::image_read(path)
+        out <- sub(pattern = "[.]png$", replacement = ".webp", x = path)
+        tmp <- tempfile(fileext = ".webp")
+        magick::image_write(
+            image   = img
+          , path    = out
+          , format  = "webp"
+          , quality = 100
+          , defines = c(`webp:lossless` = "true")
+          )
+        magick::image_write(image = img, path = tmp, format = "webp", quality = 90)
+        if (file.size(tmp) < file.size(out) / 2) file.copy(from = tmp, to = out, overwrite = TRUE)
+        unlink(c(path, tmp))
+        out
+      }
+    , error = function(e) path
+    )
+}
+knitr::opts_chunk$set(collapse = FALSE, comment = "", fig.width = 7, fig.height = 4.2,
+                      dev = if (knitr::is_latex_output()) "cairo_pdf" else "ragg_png", dpi = 96,
+                      fig.process = webp)
+if (requireNamespace("mhpfilter", quietly = TRUE)) library(mhpfilter) else
+  pkgload::load_all(export_all = FALSE, helpers = FALSE, quiet = TRUE)
+```
+
+# Abstract
+
+`mhp_app()` opens an application in the web browser that runs the filters of the package without code: the data,
+the HP, modified HP and fully modified HP filters, their comparison, the diagnostics of the end-point bias, many
+series at once and the simulation study. This vignette describes its pages and how it keeps its results
+reproducible.
+
+# Starting the application
+
+```{r launch, eval = FALSE}
+mhp_app(
+    launch.browser = TRUE
+  )
+```
+
+The application needs the suggested packages **shiny**, **bslib** and **DT**. **magick** with WebP support is
+optional: with it the plots are sent to the browser as WebP images, smaller than the same PNG.
+
+# The pages
+
+| Page | What it does |
+|---|---|
+| Home | what the application does and the order of the pages |
+| Data | the `us_macro` example or a CSV file with one series per column; the series, its frequency and first period, and whether to filter its logarithm |
+| Filter | the fully modified HP, modified HP or HP filter with its settings; interpretation, plot, table, printed output and R code |
+| Compare | the three filters on the same series: moments of the cycles, the end-point loss and the spread of the cycle at the ends and in the middle |
+| Diagnostics | the end-point loss, the gain functions or the filter weights for the smoothing parameters of the last fit |
+| Batch | every numeric column of the data, each with its own smoothing parameter |
+| Simulation | the power comparison of Hanif et al. (2017) for chosen designs |
+| References | the articles behind the methods, as `mhp_cite()` prints them |
+
+Every result page has the same tabs:
+
+* **Interpretation** gives the plain-language reading of `mhp_interpret()`, with a button that copies it.
+* **Plot** shows the figure, which can be saved as PNG, PDF or WebP.
+* **Table** shows the numbers, rounded, in a sortable table with buttons to copy them or save them as CSV or Excel.
+* **Output** shows the printed result as text, with a button that copies it.
+
+The filter page has a further tab, **R code**, with the code that reproduces the fit outside the application.
+
+The filter page after the fully modified HP filter of US GDP with the default settings:
+
+```{r shot-filter, echo = FALSE, out.width = "100%"}
+knitr::include_graphics(path = if (knitr::is_latex_output()) "figures/app-filter.jpg" else "figures/app-filter.webp")
+```
+
+its plot:
+
+```{r shot-plot, echo = FALSE, out.width = "100%"}
+knitr::include_graphics(path = if (knitr::is_latex_output()) "figures/app-plot.jpg" else "figures/app-plot.webp")
+```
+
+the comparison of the three filters:
+
+```{r shot-compare, echo = FALSE, out.width = "100%"}
+knitr::include_graphics(path = if (knitr::is_latex_output()) "figures/app-compare.jpg" else "figures/app-compare.webp")
+```
+
+and the end-point loss at the chosen smoothing parameters:
+
+```{r shot-diagnostics, echo = FALSE, out.width = "100%"}
+knitr::include_graphics(path = if (knitr::is_latex_output()) "figures/app-diagnostics.jpg" else "figures/app-diagnostics.webp")
+```
+
+The loss on the diagnostics page (0.79) is larger than the loss in the interpretation (0.62): the procedure chooses
+the weights by their loss at $\lambda$ of the modified HP filter (683) and then searches $\lambda$ again (1448), and
+the loss is reported at the first, as in the MATLAB code. The diagnostics page evaluates it at the second.
+
+# Reproducibility
+
+For the settings of the screenshots, the R code tab shows:
+
+```{r code}
+settings <-
+  list(
+      source       = "example"
+    , freq         = "4"
+    , col          = "gdp"
+    , start        = 1959
+    , start_period = 1
+    , logs         = TRUE
+    , method       = "fmhp"
+    , max_lambda   = 3000
+    , k_linear     = 15
+    , k_quadratic  = NA
+    , schemes      = c("linear", "quadratic")
+    , form         = "rows"
+    )
+cat(mhpfilter:::.mhp_app_code(input = settings))
+```
+
+The filters are deterministic, so the code returns the same numbers as the application.
+
+# Deploying
+
+`mhp_app_object()` returns the application object without running it, for a server:
+
+```{r deploy, eval = FALSE}
+# app.R on a Shiny server
+mhpfilter::mhp_app_object()
+```
+
+# References
+
+Choudhary, M. A., Hanif, M. N. and Iqbal, J. (2014). On smoothing macroeconomic time series using the modified HP
+filter. *Applied Economics*, 46(19), 2205--2214.
+
+Hanif, M. N., Iqbal, J. and Choudhary, M. A. (2017). Fully modified HP filter. *SBP Working Paper Series*, No. 88,
+State Bank of Pakistan.

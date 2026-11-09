@@ -1,0 +1,21 @@
+symbol,text,kind,meaning,argument
+"T",T,scalar,"number of observations",x
+"t, j",t j,index,"time and the observations weighted in the estimate at time t",
+"\mathbf{x}",x,vector,"the series (its logarithm when log_scale = TRUE)",x
+"\mathbf{g}",g,vector,"trend",
+"\mathbf{c}",c,vector,"cycle, x - g",
+"\mathbf{K}",K,matrix,"(T - 2) x T matrix of second differences",
+"\mathbf{A}",A,matrix,"penalty matrix K'K",
+"\mathbf{I}",I,matrix,"identity matrix",
+"\mathbf{B}",B,matrix,"smoother: g = B x; row t holds the weights of the estimate at t",
+"\lambda",lambda,scalar,"smoothing parameter",lambda
+"\lambda_t",lambda_t,vector,"smoothing parameter of observation t (or of second difference t)",lambda_t
+"\alpha",alpha,scalar,"end-point weight",alpha_linear
+"k",k,scalar,"number of end values with raised smoothing parameters",k_linear
+"\omega",omega,scalar,"frequency (radians)",theta
+"P_t(\omega)",P_t(omega),scalar,"gain of the estimate at t",
+"l(t), L",l(t) L,scalar,"end-point loss of the estimate at t, and its total",
+"\theta",theta,scalar,"spacing of the frequencies in the loss (0.1)",weight
+"\mu_i",mu_i,scalar,"eigenvalues of A (exact GCV)",
+"\phi_1, \phi_2",phi_1 phi_2,scalar,"AR(2) coefficients of a simulated cycle",ar
+"\sigma_\varepsilon, \sigma_\delta",sigma_e sigma_d,scalar,"standard deviations of the trend and cycle shocks",sd_ratio

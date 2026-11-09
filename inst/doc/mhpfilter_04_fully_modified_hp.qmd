@@ -1,0 +1,278 @@
+---
+title: "Reproducing the fully modified HP filter"
+author: "Muhammad Yaseen"
+date: last-modified
+format:
+  html:
+    self-contained: true
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    highlight-style: pygments
+    code-tools: true
+    html-math-method: mathjax
+vignette: >
+  %\VignetteIndexEntry{Reproducing the fully modified HP filter}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+{{< include _mhpfilter-macros.txt >}}
+
+```{r setup, include = FALSE}
+# HTML figures are drawn as PNG and kept as WebP: lossless, or lossy at quality 90 when that is less than half the
+# size. The PDF figures stay vector graphics. Any failure of magick (not installed, no WebP, or a broken
+# installation whose system libraries are missing) keeps the PNG
+webp <- function(path) {
+  if (knitr::is_latex_output() || !grepl(pattern = "[.]png$", x = path)) return(path)
+  tryCatch(
+      {
+        if (!requireNamespace("magick", quietly = TRUE) || !isTRUE(magick::magick_config()$webp)) return(path)
+        img <- magick::image_read(path)
+        out <- sub(pattern = "[.]png$", replacement = ".webp", x = path)
+        tmp <- tempfile(fileext = ".webp")
+        magick::image_write(
+            image   = img
+          , path    = out
+          , format  = "webp"
+          , quality = 100
+          , defines = c(`webp:lossless` = "true")
+          )
+        magick::image_write(image = img, path = tmp, format = "webp", quality = 90)
+        if (file.size(tmp) < file.size(out) / 2) file.copy(from = tmp, to = out, overwrite = TRUE)
+        unlink(c(path, tmp))
+        out
+      }
+    , error = function(e) path
+    )
+}
+knitr::opts_chunk$set(collapse = FALSE, comment = "", fig.width = 7, fig.height = 4.2,
+                      dev = if (knitr::is_latex_output()) "cairo_pdf" else "ragg_png", dpi = 96,
+                      fig.process = webp)
+if (requireNamespace("mhpfilter", quietly = TRUE)) library(mhpfilter) else
+  pkgload::load_all(export_all = FALSE, helpers = FALSE, quiet = TRUE)
+```
+
+# Abstract
+
+This vignette reproduces the published numbers of the fully modified HP filter of Hanif, Iqbal and Choudhary (2017):
+the weights of Figure 1 and 1a, the gains of Figures 2 and 2b, the losses of Figures 3 and 3b, and the end-point
+losses of Tables 3a and 3b. The losses of the HP filter and the annual column of the paper's own scheme are
+reproduced to the printed digits; the quarterly column of its scheme is not, and the vignette says why. It also
+checks that `fmhp_filter()` returns what the authors' MATLAB code returns.
+
+# The published values
+
+Every number the package reproduces is a row of `inst/extdata/reference.csv`, with the call that recomputes it.
+The same file drives a test, so the check below runs at every `R CMD check`.
+
+```{r reference}
+ref <-
+  mhp_reference(
+      source   = "Hanif"
+    , evaluate = TRUE
+    , level    = 1
+    )
+ref[, .(id, value, computed = round(x = computed, digits = 3), agrees)]
+ref[agrees == FALSE, note]
+```
+
+# Weights (Figures 1 and 1a)
+
+For the HP filter with $\lambda = 100$ and $T = 50$, the weights of the first estimate range over 0.385, from
+$-0.024$ to 0.362, the weight of the first observation in its own trend. The paper's Figure 1a shows the same weights with its
+quadratic scheme and a range of 0.182. That range is reached by the quadratic scheme with $k = 20$ and
+$\alpha = 10$, in the form of the MATLAB code (`form = "rows"`):
+
+```{r weights}
+w_hp <-
+  hp_weights(
+      x      = 50
+    , lambda = 100
+    , form   = "rows"
+    , rows   = NULL
+    )
+w_q <-
+  hp_weights(
+      x      = 50
+    , lambda = hp_schedule(
+          T      = 50
+        , lambda = 100
+        , alpha  = 10
+        , k      = 20
+        , power  = 2
+        , form   = "rows"
+        )
+    , form   = "rows"
+    , rows   = NULL
+    )
+c(hp = diff(range(w_hp$weights[1, ])), quadratic = diff(range(w_q$weights[1, ])))
+```
+
+```{r weights-plot, fig.height = 5}
+plot(x = w_hp)
+plot(x = w_q)
+```
+
+# Gains (Figures 2 and 2b)
+
+```{r gain, fig.height = 5}
+plot(
+  x = hp_gain(
+      x      = 50
+    , lambda = 100
+    , form   = "rows"
+    , theta  = seq(from = 0, to = pi, length.out = 101)
+    , rows   = NULL
+    )
+  )
+plot(
+  x = hp_gain(
+      x      = 50
+    , lambda = w_q$lambda_t
+    , form   = "rows"
+    , theta  = seq(from = 0, to = pi, length.out = 101)
+    , rows   = NULL
+    )
+  )
+```
+
+With the end weights, the gains of the first and last estimates move towards the gain in the middle.
+
+# Loss (Figures 3 and 3b; Tables 3a and 3b)
+
+```{r loss}
+l_hp <-
+  hp_loss(
+      x      = 55
+    , lambda = 100
+    , form   = "rows"
+    , theta  = seq(from = 0, to = 3.1, by = 0.1)
+    , weight = 0.1
+    )
+l_q <-
+  hp_loss(
+      x      = 55
+    , lambda = hp_schedule(
+          T      = 55
+        , lambda = 100
+        , alpha  = 10
+        , k      = 20
+        , power  = 2
+        , form   = "rows"
+        )
+    , form   = "rows"
+    , theta  = seq(from = 0, to = 3.1, by = 0.1)
+    , weight = 0.1
+    )
+c(hp = l_hp$total, quadratic = l_q$total)
+```
+
+The loss depends only on $T$ and the smoothing parameters, so the HP column of Tables 3a and 3b is a function of the
+length of each series: 1.731 to 1.735 for 40 to 55 annual values, 1.757 to 1.770 for 72 to 103 quarterly values.
+The package reproduces both once the centre of the loss is placed as MATLAB places it ($c = \lfloor T/2 + 0.5
+\rfloor$; R's `round()` rounds halves to even and gives a different centre for odd $T$).
+
+The column "HP (our scheme)" of Table 3a is reproduced for several series by the quadratic scheme of Figure 1a,
+$k = 20$ and $\alpha = 10$: 0.626 for $T = 55$, 0.627 for $T = 54$ and 0.623 for $T = 50$. Two values of that column
+(0.545 and 0.534) and the quarterly column of Table 3b (0.770 to 0.827) are not given by these weights: with
+$\lambda = 1600$ they give a loss of about 1.00. The paper does not report the weights or the lengths of the series
+behind those values, so they cannot be traced.
+
+```{r loss-plot}
+plot(x = l_hp)
+plot(x = l_q)
+```
+
+# The filter on US data
+
+`fmhp_filter()` runs the procedure of the paper: $\lambda$ of the modified HP filter, the weight $\alpha$ of each
+scheme that minimises the loss, $\lambda$ again with those weights, and the scheme with the smaller loss.
+
+```{r fmhp}
+fit <-
+  fmhp_filter(
+      x               = us_macro$gdp
+    , max_lambda      = 3000
+    , k_linear        = 15
+    , k_quadratic     = NULL
+    , alpha_linear    = seq(from = 0, to = 2000, by = 10)
+    , alpha_quadratic = seq(from = 0, to = 2000, by = 5)
+    , schemes         = c("linear", "quadratic")
+    , form            = "rows"
+    , lambda          = NULL
+    , log_scale       = TRUE
+    , as_dt           = FALSE
+    )
+fit
+```
+
+The loss printed is the one by which the scheme was chosen, at $\lambda$ of the modified HP filter, as in the
+MATLAB code (`minloss`). At the final $\lambda$ the same weights give a larger loss:
+
+```{r fmhp-final-loss}
+hp_loss(
+    x      = length(us_macro$gdp)
+  , lambda = fit$lambda_t
+  , form   = "rows"
+  , theta  = seq(from = 0, to = 3.1, by = 0.1)
+  , weight = 0.1
+  )$total
+```
+
+```{r fmhp-loss}
+ggplot2::autoplot(
+    object = fit
+  , which  = "loss"
+  )
+```
+
+Over three US series:
+
+```{r fmhp-batch}
+fb <-
+  fmhp_batch(
+      X               = as.matrix(us_macro[, c("gdp", "consumption", "investment")])
+    , max_lambda      = 3000
+    , k_linear        = 15
+    , k_quadratic     = NULL
+    , alpha_linear    = seq(from = 0, to = 2000, by = 10)
+    , alpha_quadratic = seq(from = 0, to = 2000, by = 5)
+    , schemes         = c("linear", "quadratic")
+    , form            = "rows"
+    , lambda          = NULL
+    , log_scale       = TRUE
+    )
+attr(x = fb, which = "lambdas")
+```
+
+The losses for the US in Table 3b of the paper lie between 0.539 and 0.566; ours are 0.59 to 0.67. They are not
+expected to agree: the paper's US series come from another source and cover another span, and the loss of the
+fully modified filter depends on the weights chosen, which depend on the data.
+
+# Agreement with the MATLAB code
+
+The tests of the package carry a line-by-line port of the authors' MATLAB function (`tests/testthat/helper-matlab.R`,
+dense matrices and explicit loops) and compare it with `fmhp_filter()` on a simulated series: the smoothing parameters
+and the weights of both schemes agree exactly, their losses to $10^{-10}$, and the trend and cycle to $10^{-8}$. A
+port of the MATLAB code of the modified HP filter (Choudhary et al. 2014) is checked against `mhp_filter()` in the
+same way. The package reaches the same numbers by
+$O(T)$ banded solves instead of dense inverses.
+
+# References
+
+Bloechl, A. (2014). Reducing the excess variability of the Hodrick-Prescott filter by flexible penalization.
+*Discussion Paper* 2014-1, University of Munich.
+
+Hanif, M. N., Iqbal, J. and Choudhary, M. A. (2017). Fully modified HP filter. *SBP Working Paper Series*, No. 88,
+State Bank of Pakistan.
+
+Choudhary, M. A., Hanif, M. N. and Iqbal, J. (2014). On smoothing macroeconomic time series using the modified HP
+filter. *Applied Economics*, 46(19), 2205--2214.
+
+Hanif, M. N., Iqbal, J. and Choudhary, M. A. (2017). fmhpfilter: MATLAB code of the fully modified HP filter,
+version 1.0.0. MATLAB Central File Exchange 63198.

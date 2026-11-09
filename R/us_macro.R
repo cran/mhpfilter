@@ -1,0 +1,28 @@
+#' United States real GDP, consumption and investment, 1959 to 2009 (quarterly)
+#'
+#' @description
+#' Quarterly real gross domestic product, real personal consumption expenditures and real gross private domestic
+#' investment of the United States from the first quarter of 1959 to the third quarter of 2009: the three series
+#' (income, consumption and investment) of the empirical analysis of Hanif, Iqbal and Choudhary (2017), for one
+#' country.
+#'
+#' @format A data frame with 203 rows and 5 columns:
+#' \describe{
+#'   \item{\code{year}}{year, 1959 to 2009.}
+#'   \item{\code{quarter}}{quarter, 1 to 4.}
+#'   \item{\code{gdp}}{real gross domestic product (billions of chained 2005 US dollars, seasonally adjusted annual
+#'     rate).}
+#'   \item{\code{consumption}}{real personal consumption expenditures (same units).}
+#'   \item{\code{investment}}{real gross private domestic investment (same units).}
+#' }
+#' @source Federal Reserve Economic Data (FRED), Federal Reserve Bank of St. Louis, accessed 15 December 2009, as
+#'   compiled in the data set \code{macrodata} of the Python library statsmodels (public domain).
+#' @references
+#' Hanif, M. N., Iqbal, J. and Choudhary, M. A. (2017). Fully modified HP filter. \emph{SBP Working Paper Series},
+#' No. 88, State Bank of Pakistan.
+#' @examples
+#' data(us_macro)
+#' head(us_macro)
+#' gdp <- ts(data = us_macro$gdp, start = c(1959, 1), frequency = 4)
+#' plot(log(gdp))
+"us_macro"

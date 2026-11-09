@@ -1,0 +1,261 @@
+---
+title: "Getting started with mhpfilter"
+author: "Muhammad Yaseen"
+date: last-modified
+format:
+  html:
+    self-contained: true
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    highlight-style: pygments
+    code-tools: true
+    html-math-method: mathjax
+vignette: >
+  %\VignetteIndexEntry{Getting started with mhpfilter}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+{{< include _mhpfilter-macros.txt >}}
+
+```{r setup, include = FALSE}
+# HTML figures are drawn as PNG and kept as WebP: lossless, or lossy at quality 90 when that is less than half the
+# size. The PDF figures stay vector graphics. Any failure of magick (not installed, no WebP, or a broken
+# installation whose system libraries are missing) keeps the PNG
+webp <- function(path) {
+  if (knitr::is_latex_output() || !grepl(pattern = "[.]png$", x = path)) return(path)
+  tryCatch(
+      {
+        if (!requireNamespace("magick", quietly = TRUE) || !isTRUE(magick::magick_config()$webp)) return(path)
+        img <- magick::image_read(path)
+        out <- sub(pattern = "[.]png$", replacement = ".webp", x = path)
+        tmp <- tempfile(fileext = ".webp")
+        magick::image_write(
+            image   = img
+          , path    = out
+          , format  = "webp"
+          , quality = 100
+          , defines = c(`webp:lossless` = "true")
+          )
+        magick::image_write(image = img, path = tmp, format = "webp", quality = 90)
+        if (file.size(tmp) < file.size(out) / 2) file.copy(from = tmp, to = out, overwrite = TRUE)
+        unlink(c(path, tmp))
+        out
+      }
+    , error = function(e) path
+    )
+}
+knitr::opts_chunk$set(collapse = FALSE, comment = "", fig.width = 7, fig.height = 4.2,
+                      dev = if (knitr::is_latex_output()) "cairo_pdf" else "ragg_png", dpi = 96,
+                      fig.process = webp)
+if (requireNamespace("mhpfilter", quietly = TRUE)) library(mhpfilter) else
+  pkgload::load_all(export_all = FALSE, helpers = FALSE, quiet = TRUE)
+```
+
+# Abstract
+
+**mhpfilter** splits a macroeconomic time series into a trend and a cycle. This vignette takes the quarterly real GDP
+of the United States from the raw series to the three filters of the package, their comparison, many series at once
+and a plain-language reading of the results. The later vignettes give the theory (vignette 2), the two papers behind
+the package (vignettes 3 and 4), the simulation study (vignette 5), the application (vignette 6) and the checks of
+the code (vignette 7).
+
+# The data
+
+`us_macro` holds quarterly real GDP, consumption and investment of the United States from 1959 to 2009 (FRED). As a
+`ts` the series keeps its dates, and every result of the package keeps them too.
+
+```{r data}
+data(us_macro)
+head(us_macro)
+gdp <- ts(data = us_macro$gdp, start = c(1959, 1), frequency = 4)
+```
+
+# Three filters
+
+## The HP filter
+
+The filter of Hodrick and Prescott (1997) fits a smooth trend $\vg$ to the series $\vx$ by minimising
+$$
+\sum_{t=1}^{T}(x_t - g_t)^2 + \lambda\sum_{t=2}^{T-1}\left[(g_{t+1} - g_t) - (g_t - g_{t-1})\right]^2 ,
+$$
+and the cycle is $\vc = \vx - \vg$. The smoothing parameter $\lambda$ is conventionally 1600 for quarterly data. On
+the logarithm of a series the cycle is close to the percentage deviation from the trend.
+
+```{r hp}
+hp <-
+  hp_filter(
+      x         = log(gdp)
+    , lambda    = 1600
+    , as_dt     = TRUE
+    , log_scale = FALSE
+    )
+hp
+```
+
+With `as_dt = TRUE`, the default kept from version 0.1.0, the result is a `data.table`; `as_dt = FALSE` gives a list
+with methods for printing and plotting.
+
+## The modified HP filter
+
+The modified HP filter of McDermott (1997), assessed by Choudhary, Hanif and Iqbal (2014), lets the data choose
+$\lambda$: it tries every $\lambda = 1, 2, \dots$ and keeps the one that minimises a generalised cross-validation
+criterion.
+
+```{r mhp}
+mhp <-
+  mhp_filter(
+      x          = log(gdp)
+    , max_lambda = 100000
+    , as_dt      = FALSE
+    , log_scale  = FALSE
+    , criterion  = "approximate"
+    )
+mhp
+```
+
+```{r mhp-plot, fig.height = 5}
+plot(x = mhp)
+```
+
+```{r mhp-gcv}
+plot(x = mhp, which = "gcv")
+```
+
+## The fully modified HP filter
+
+The HP filter has too little information at the ends of a series, so its trend follows the last observations too
+closely and the end of the cycle is biased towards zero, just where a policy maker needs it most. The fully
+modified HP filter of Hanif, Iqbal and Choudhary (2017) raises $\lambda$ at the first and last observations, with
+weights chosen to make the filter at the ends behave like the filter in the middle, and chooses $\lambda$ from the
+data as the modified HP filter does. The published code filters the logarithm of the series and returns the trend
+and the cycle in levels; `log_scale = TRUE` does the same.
+
+```{r fmhp}
+fm <-
+  fmhp_filter(
+      x               = gdp
+    , max_lambda      = 3000
+    , k_linear        = 15
+    , k_quadratic     = NULL
+    , alpha_linear    = seq(from = 0, to = 2000, by = 10)
+    , alpha_quadratic = seq(from = 0, to = 2000, by = 5)
+    , schemes         = c("linear", "quadratic")
+    , form            = "rows"
+    , lambda          = NULL
+    , log_scale       = TRUE
+    , as_dt           = FALSE
+    )
+fm
+fm$schemes
+```
+
+```{r fmhp-lambda}
+plot(x = fm, which = "lambda")
+```
+
+The smoothing parameter rises from `r fm$lambda` in the middle to `r max(fm$lambda_t)` at the first and last
+observation (`r fm$scheme` weights on `r fm$k` values at each end).
+
+# Comparing the filters
+
+`fmhp_compare()` filters the series with the three filters and compares the cycles and their end-point loss, the
+measure of end-point bias used by Hanif et al. (2017): zero for a filter that treats the ends like the middle.
+
+```{r compare}
+cmp <-
+  fmhp_compare(
+      x          = gdp
+    , frequency  = "quarterly"
+    , max_lambda = 3000
+    , log_scale  = TRUE
+    , end_share  = 0.1
+    )
+cmp
+```
+
+The fully modified HP filter cuts the loss of the HP filter by more than half. Its cycle is also more variable at
+the ends than in the middle, unlike the cycles of the other two filters: the end-point bias of the HP filter shows as
+cycles that are too small at the ends.
+
+```{r compare-plot, fig.height = 5.5}
+plot_comparison(
+    x          = log(gdp)
+  , frequency  = "quarterly"
+  , max_lambda = 100000
+  , show_cycle = TRUE
+  , fmhp       = TRUE
+  )
+```
+
+# Many series
+
+`mhp_batch()` and `fmhp_batch()` filter every column of a matrix; series of different lengths can share it, padded
+with missing values at the start or the end.
+
+```{r batch}
+X <- as.matrix(us_macro[, c("gdp", "consumption", "investment")])
+fb <-
+  fmhp_batch(
+      X               = X
+    , max_lambda      = 3000
+    , k_linear        = 15
+    , k_quadratic     = NULL
+    , alpha_linear    = seq(from = 0, to = 2000, by = 10)
+    , alpha_quadratic = seq(from = 0, to = 2000, by = 5)
+    , schemes         = c("linear", "quadratic")
+    , form            = "rows"
+    , lambda          = NULL
+    , log_scale       = TRUE
+    )
+attr(x = fb, which = "lambdas")
+```
+
+```{r batch-plot, fig.height = 4.5}
+plot_batch(
+    x         = fb
+  , show      = "cycle"
+  , facet     = TRUE
+  , highlight = NULL
+  )
+```
+
+# Reading the results
+
+`mhp_interpret()` reads a result in plain language, from its numbers, and ends with the sources of the method.
+
+```{r interpret}
+mhp_interpret(
+    x   = fm
+  , top = 3
+  )
+```
+
+# Where next
+
+* Vignette 2: the filters, their criteria, gains and loss, and how they are computed.
+* Vignette 3: the modified HP filter of Choudhary, Hanif and Iqbal (2014).
+* Vignette 4: the fully modified HP filter of Hanif, Iqbal and Choudhary (2017), with the reproduction of its figures
+  and tables.
+* Vignette 5: the simulation study.
+* Vignette 6: the application, `mhp_app()`.
+* Vignette 7: checks of the code against the authors' MATLAB programs, the released version and dense computations.
+
+# References
+
+Choudhary, M. A., Hanif, M. N. and Iqbal, J. (2014). On smoothing macroeconomic time series using the modified HP
+filter. *Applied Economics*, 46(19), 2205--2214.
+
+Hanif, M. N., Iqbal, J. and Choudhary, M. A. (2017). Fully modified HP filter. *SBP Working Paper Series*, No. 88,
+State Bank of Pakistan.
+
+Hodrick, R. J. and Prescott, E. C. (1997). Postwar U.S. business cycles: an empirical investigation. *Journal of
+Money, Credit and Banking*, 29(1), 1--16.
+
+McDermott, C. J. (1997). An automatic method for choosing the smoothing parameter in the HP filter. Unpublished,
+International Monetary Fund.

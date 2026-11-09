@@ -1,47 +1,71 @@
-citHeader("To cite mhpfilter in publications use:")
+# The version and year follow the installed package (from DESCRIPTION). The package was first released in 2026
+# (version 0.1.0, CRAN, 2026-02-13).
+first <- "2026"
+ver  <- if (!is.null(meta$Version)) meta$Version else utils::packageVersion("mhpfilter")
+date <- if (!is.null(meta$Date)) meta$Date else if (!is.null(meta$`Date/Publication`)) meta$`Date/Publication` else
+  as.character(Sys.Date())
+year <- substr(date, 1L, 4L)
+note <- if (first == year) sprintf("R package version %s", ver) else
+  sprintf("R package version %s (first released %s)", ver, first)
+bibentry(
+    bibtype     = "Manual"
+  , key         = "mhpfilter"
+  , header      = "To cite mhpfilter in publications use:"
+  , title       = "{mhpfilter}: Modified and Fully Modified Hodrick-Prescott Filters"
+  , author      = c(
+        person("Muhammad", "Yaseen", email = "myaseen208@gmail.com", comment = c(ORCID = "0000-0002-5923-1714"))
+      )
+  , year        = year
+  , note        = note
+  , url         = "https://CRAN.R-project.org/package=mhpfilter"
+  , textVersion = sprintf(paste("Yaseen, M. (%s). mhpfilter: Modified and Fully Modified Hodrick-Prescott Filters.",
+                                "%s. https://CRAN.R-project.org/package=mhpfilter"), year, note)
+  )
 
 bibentry(
-  bibtype  = "Manual",
-  title    = "mhpfilter: Modified Hodrick-Prescott Filter with Optimal Smoothing Parameter Selection",
-  author   = person("Muhammad", "Yaseen",
-                   email = "myaseen208@gmail.com",
-                   role = c("aut", "cre"),
-                   comment = c(ORCID = "0000-0002-5923-1714")),
-  year     = "2025",
-  note     = "R package version 0.1.0",
-  url      = "https://myaseen208.com/mhpfilter/",
-  textVersion = paste(
-    "Yaseen, M. (2025).",
-    "mhpfilter: Modified Hodrick-Prescott Filter with Optimal Smoothing Parameter Selection.",
-    "R package version 0.1.0.",
-    "https://myaseen208.com/mhpfilter/"
+    bibtype     = "TechReport"
+  , key         = "Hanif2017"
+  , header      = "and for the methods (mhp_cite() gives the references of a single analysis):"
+  , title       = "Fully Modified {HP} Filter"
+  , author      = c(person(c("M.", "Nadim"), "Hanif"),
+                  person(c("Javed"), "Iqbal"),
+                  person(c("M.", "Ali"), "Choudhary"))
+  , institution = "State Bank of Pakistan"
+  , type        = "SBP Working Paper Series"
+  , number      = "88"
+  , year        = "2017"
+  , textVersion = paste("Hanif, M. N., Iqbal, J. and Choudhary, M. A. (2017). Fully modified HP filter. SBP",
+                      "Working Paper Series, No. 88, State Bank of Pakistan.")
   )
-)
-
 bibentry(
-  bibtype  = "Article",
-  title    = "On smoothing macroeconomic time series using the modified HP filter",
-  author   = c(
-    person("M. Ali", "Choudhary"),
-    person("M. Nadim", "Hanif",
-          email = "Nadeem.hanif@sbp.org.pk"),
-    person("Javed", "Iqbal",
-          email = "Javed.iqbal6@sbp.org.pk")
-  ),
-  journal  = "Applied Economics",
-  year     = "2014",
-  volume   = "46",
-  number   = "19",
-  pages    = "2205--2214",
-  doi      = "10.1080/00036846.2014.894631",
-  textVersion = paste(
-    "Choudhary, M.A., Hanif, M.N., & Iqbal, J. (2014).",
-    "On smoothing macroeconomic time series using the modified HP filter.",
-    "Applied Economics, 46(19), 2205-2214.",
-    "https://doi.org/10.1080/00036846.2014.894631"
+    bibtype     = "Article"
+  , key         = "Choudhary2014"
+  , title       = "On Smoothing Macroeconomic Time Series Using the Modified {HP} Filter"
+  , author      = c(person(c("M.", "Ali"), "Choudhary"),
+                  person(c("M.", "Nadim"), "Hanif"),
+                  person(c("Javed"), "Iqbal"))
+  , journal     = "Applied Economics"
+  , year        = "2014"
+  , volume      = "46"
+  , number      = "19"
+  , pages       = "2205--2214"
+  , doi         = "10.1080/00036846.2014.894631"
+  , textVersion = paste("Choudhary, M. A., Hanif, M. N. and Iqbal, J. (2014). On smoothing macroeconomic time",
+                      "series using the modified HP filter. Applied Economics, 46(19), 2205-2214.",
+                      "doi:10.1080/00036846.2014.894631")
   )
-)
-
-citFooter(
-  "Please cite both the package and the original methodology paper when using mhpfilter in your research."
-)
+bibentry(
+    bibtype     = "Article"
+  , key         = "HodrickPrescott1997"
+  , title       = "Postwar {U.S.} Business Cycles: An Empirical Investigation"
+  , author      = c(person(c("Robert", "J."), "Hodrick"),
+                  person(c("Edward", "C."), "Prescott"))
+  , journal     = "Journal of Money, Credit and Banking"
+  , year        = "1997"
+  , volume      = "29"
+  , number      = "1"
+  , pages       = "1--16"
+  , doi         = "10.2307/2953682"
+  , textVersion = paste("Hodrick, R. J. and Prescott, E. C. (1997). Postwar U.S. business cycles: an empirical",
+                      "investigation. Journal of Money, Credit and Banking, 29(1), 1-16. doi:10.2307/2953682")
+  )

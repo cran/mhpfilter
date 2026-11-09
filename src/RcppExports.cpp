@@ -11,88 +11,135 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
-// build_K
-arma::mat build_K(int T);
-RcppExport SEXP _mhpfilter_build_K(SEXP TSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< int >::type T(TSEXP);
-    rcpp_result_gen = Rcpp::wrap(build_K(T));
-    return rcpp_result_gen;
-END_RCPP
-}
-// hp_trend
-arma::vec hp_trend(const arma::vec& x, const arma::mat& A, double lambda);
-RcppExport SEXP _mhpfilter_hp_trend(SEXP xSEXP, SEXP ASEXP, SEXP lambdaSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::vec& >::type x(xSEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type A(ASEXP);
-    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
-    rcpp_result_gen = Rcpp::wrap(hp_trend(x, A, lambda));
-    return rcpp_result_gen;
-END_RCPP
-}
-// gcv_single
-double gcv_single(const arma::vec& x, const arma::vec& trend, double lambda, int T);
-RcppExport SEXP _mhpfilter_gcv_single(SEXP xSEXP, SEXP trendSEXP, SEXP lambdaSEXP, SEXP TSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::vec& >::type x(xSEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type trend(trendSEXP);
-    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
-    Rcpp::traits::input_parameter< int >::type T(TSEXP);
-    rcpp_result_gen = Rcpp::wrap(gcv_single(x, trend, lambda, T));
-    return rcpp_result_gen;
-END_RCPP
-}
-// mhp_core
-List mhp_core(const arma::vec& x, int max_lambda);
-RcppExport SEXP _mhpfilter_mhp_core(SEXP xSEXP, SEXP max_lambdaSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::vec& >::type x(xSEXP);
-    Rcpp::traits::input_parameter< int >::type max_lambda(max_lambdaSEXP);
-    rcpp_result_gen = Rcpp::wrap(mhp_core(x, max_lambda));
-    return rcpp_result_gen;
-END_RCPP
-}
-// hp_core
-List hp_core(const arma::vec& x, double lambda);
-RcppExport SEXP _mhpfilter_hp_core(SEXP xSEXP, SEXP lambdaSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::vec& >::type x(xSEXP);
-    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
-    rcpp_result_gen = Rcpp::wrap(hp_core(x, lambda));
-    return rcpp_result_gen;
-END_RCPP
-}
-// mhp_batch
-List mhp_batch(const arma::mat& X, int max_lambda);
-RcppExport SEXP _mhpfilter_mhp_batch(SEXP XSEXP, SEXP max_lambdaSEXP) {
+// mhp_trend_cpp
+arma::mat mhp_trend_cpp(const arma::mat& X, const arma::vec& lam, int form);
+RcppExport SEXP _mhpfilter_mhp_trend_cpp(SEXP XSEXP, SEXP lamSEXP, SEXP formSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
-    Rcpp::traits::input_parameter< int >::type max_lambda(max_lambdaSEXP);
-    rcpp_result_gen = Rcpp::wrap(mhp_batch(X, max_lambda));
+    Rcpp::traits::input_parameter< const arma::vec& >::type lam(lamSEXP);
+    Rcpp::traits::input_parameter< int >::type form(formSEXP);
+    rcpp_result_gen = Rcpp::wrap(mhp_trend_cpp(X, lam, form));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mhp_crit_cpp
+arma::vec mhp_crit_cpp(const arma::vec& x, const arma::vec& grid, double alpha, int k, double power, int form);
+RcppExport SEXP _mhpfilter_mhp_crit_cpp(SEXP xSEXP, SEXP gridSEXP, SEXP alphaSEXP, SEXP kSEXP, SEXP powerSEXP, SEXP formSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type grid(gridSEXP);
+    Rcpp::traits::input_parameter< double >::type alpha(alphaSEXP);
+    Rcpp::traits::input_parameter< int >::type k(kSEXP);
+    Rcpp::traits::input_parameter< double >::type power(powerSEXP);
+    Rcpp::traits::input_parameter< int >::type form(formSEXP);
+    rcpp_result_gen = Rcpp::wrap(mhp_crit_cpp(x, grid, alpha, k, power, form));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mhp_gain_cpp
+arma::mat mhp_gain_cpp(int T, const arma::vec& lam, const arma::vec& theta, int form);
+RcppExport SEXP _mhpfilter_mhp_gain_cpp(SEXP TSEXP, SEXP lamSEXP, SEXP thetaSEXP, SEXP formSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type T(TSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type lam(lamSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< int >::type form(formSEXP);
+    rcpp_result_gen = Rcpp::wrap(mhp_gain_cpp(T, lam, theta, form));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mhp_weights_cpp
+arma::mat mhp_weights_cpp(int T, const arma::vec& lam, int form);
+RcppExport SEXP _mhpfilter_mhp_weights_cpp(SEXP TSEXP, SEXP lamSEXP, SEXP formSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type T(TSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type lam(lamSEXP);
+    Rcpp::traits::input_parameter< int >::type form(formSEXP);
+    rcpp_result_gen = Rcpp::wrap(mhp_weights_cpp(T, lam, form));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mhp_loss_cpp
+arma::vec mhp_loss_cpp(int T, const arma::vec& lam, const arma::vec& theta, int form, int centre, double weight);
+RcppExport SEXP _mhpfilter_mhp_loss_cpp(SEXP TSEXP, SEXP lamSEXP, SEXP thetaSEXP, SEXP formSEXP, SEXP centreSEXP, SEXP weightSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type T(TSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type lam(lamSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< int >::type form(formSEXP);
+    Rcpp::traits::input_parameter< int >::type centre(centreSEXP);
+    Rcpp::traits::input_parameter< double >::type weight(weightSEXP);
+    rcpp_result_gen = Rcpp::wrap(mhp_loss_cpp(T, lam, theta, form, centre, weight));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mhp_scheme_loss_cpp
+arma::vec mhp_scheme_loss_cpp(int T, double base, const arma::vec& alphas, int k, double power, const arma::vec& theta, int form, int centre, double weight);
+RcppExport SEXP _mhpfilter_mhp_scheme_loss_cpp(SEXP TSEXP, SEXP baseSEXP, SEXP alphasSEXP, SEXP kSEXP, SEXP powerSEXP, SEXP thetaSEXP, SEXP formSEXP, SEXP centreSEXP, SEXP weightSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type T(TSEXP);
+    Rcpp::traits::input_parameter< double >::type base(baseSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type alphas(alphasSEXP);
+    Rcpp::traits::input_parameter< int >::type k(kSEXP);
+    Rcpp::traits::input_parameter< double >::type power(powerSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< int >::type form(formSEXP);
+    Rcpp::traits::input_parameter< int >::type centre(centreSEXP);
+    Rcpp::traits::input_parameter< double >::type weight(weightSEXP);
+    rcpp_result_gen = Rcpp::wrap(mhp_scheme_loss_cpp(T, base, alphas, k, power, theta, form, centre, weight));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mhp_schedule_cpp
+arma::vec mhp_schedule_cpp(double base, double alpha, int k, double power, int n);
+RcppExport SEXP _mhpfilter_mhp_schedule_cpp(SEXP baseSEXP, SEXP alphaSEXP, SEXP kSEXP, SEXP powerSEXP, SEXP nSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type base(baseSEXP);
+    Rcpp::traits::input_parameter< double >::type alpha(alphaSEXP);
+    Rcpp::traits::input_parameter< int >::type k(kSEXP);
+    Rcpp::traits::input_parameter< double >::type power(powerSEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    rcpp_result_gen = Rcpp::wrap(mhp_schedule_cpp(base, alpha, k, power, n));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mhp_gcv_exact_cpp
+arma::vec mhp_gcv_exact_cpp(const arma::vec& mu, const arma::vec& z2, const arma::vec& grid);
+RcppExport SEXP _mhpfilter_mhp_gcv_exact_cpp(SEXP muSEXP, SEXP z2SEXP, SEXP gridSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type z2(z2SEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type grid(gridSEXP);
+    rcpp_result_gen = Rcpp::wrap(mhp_gcv_exact_cpp(mu, z2, grid));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_mhpfilter_build_K", (DL_FUNC) &_mhpfilter_build_K, 1},
-    {"_mhpfilter_hp_trend", (DL_FUNC) &_mhpfilter_hp_trend, 3},
-    {"_mhpfilter_gcv_single", (DL_FUNC) &_mhpfilter_gcv_single, 4},
-    {"_mhpfilter_mhp_core", (DL_FUNC) &_mhpfilter_mhp_core, 2},
-    {"_mhpfilter_hp_core", (DL_FUNC) &_mhpfilter_hp_core, 2},
-    {"_mhpfilter_mhp_batch", (DL_FUNC) &_mhpfilter_mhp_batch, 2},
+    {"_mhpfilter_mhp_trend_cpp", (DL_FUNC) &_mhpfilter_mhp_trend_cpp, 3},
+    {"_mhpfilter_mhp_crit_cpp", (DL_FUNC) &_mhpfilter_mhp_crit_cpp, 6},
+    {"_mhpfilter_mhp_gain_cpp", (DL_FUNC) &_mhpfilter_mhp_gain_cpp, 4},
+    {"_mhpfilter_mhp_weights_cpp", (DL_FUNC) &_mhpfilter_mhp_weights_cpp, 3},
+    {"_mhpfilter_mhp_loss_cpp", (DL_FUNC) &_mhpfilter_mhp_loss_cpp, 6},
+    {"_mhpfilter_mhp_scheme_loss_cpp", (DL_FUNC) &_mhpfilter_mhp_scheme_loss_cpp, 9},
+    {"_mhpfilter_mhp_schedule_cpp", (DL_FUNC) &_mhpfilter_mhp_schedule_cpp, 5},
+    {"_mhpfilter_mhp_gcv_exact_cpp", (DL_FUNC) &_mhpfilter_mhp_gcv_exact_cpp, 3},
     {NULL, NULL, 0}
 };
 

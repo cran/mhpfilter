@@ -1,0 +1,227 @@
+---
+title: "Simulation study"
+author: "Muhammad Yaseen"
+date: last-modified
+format:
+  html:
+    self-contained: true
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    highlight-style: pygments
+    code-tools: true
+    html-math-method: mathjax
+vignette: >
+  %\VignetteIndexEntry{Simulation study}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+{{< include _mhpfilter-macros.txt >}}
+
+```{r setup, include = FALSE}
+# HTML figures are drawn as PNG and kept as WebP: lossless, or lossy at quality 90 when that is less than half the
+# size. The PDF figures stay vector graphics. Any failure of magick (not installed, no WebP, or a broken
+# installation whose system libraries are missing) keeps the PNG
+webp <- function(path) {
+  if (knitr::is_latex_output() || !grepl(pattern = "[.]png$", x = path)) return(path)
+  tryCatch(
+      {
+        if (!requireNamespace("magick", quietly = TRUE) || !isTRUE(magick::magick_config()$webp)) return(path)
+        img <- magick::image_read(path)
+        out <- sub(pattern = "[.]png$", replacement = ".webp", x = path)
+        tmp <- tempfile(fileext = ".webp")
+        magick::image_write(
+            image   = img
+          , path    = out
+          , format  = "webp"
+          , quality = 100
+          , defines = c(`webp:lossless` = "true")
+          )
+        magick::image_write(image = img, path = tmp, format = "webp", quality = 90)
+        if (file.size(tmp) < file.size(out) / 2) file.copy(from = tmp, to = out, overwrite = TRUE)
+        unlink(c(path, tmp))
+        out
+      }
+    , error = function(e) path
+    )
+}
+knitr::opts_chunk$set(collapse = FALSE, comment = "", fig.width = 7, fig.height = 4.2,
+                      dev = if (knitr::is_latex_output()) "cairo_pdf" else "ragg_png", dpi = 96,
+                      fig.process = webp)
+if (requireNamespace("mhpfilter", quietly = TRUE)) library(mhpfilter) else
+  pkgload::load_all(export_all = FALSE, helpers = FALSE, quiet = TRUE)
+```
+
+# Abstract
+
+Hanif, Iqbal and Choudhary (2017) compare the HP, modified HP and fully modified HP filters on 30 simulated designs
+and report that the fully modified filter estimates the cycle better. This vignette repeats the comparison with
+`fmhp_simulation()` for quarterly series and for series averaged to annual data, with linear and nonlinear trends
+and both forms of the end-point weights. The results are precomputed by `tools/simulation-study.R` and shipped in
+`inst/extdata`; the vignette reads them, so it builds in seconds.
+
+```{r read}
+rmse  <- data.table::fread(system.file("extdata", "simulation_rmse.csv", package = "mhpfilter"))
+power <- data.table::fread(system.file("extdata", "simulation_power.csv", package = "mhpfilter"))
+n_rep <- 20
+```
+
+# The design
+
+Each series is a trend plus an AR(2) cycle (eqs. 10a and 10b of the paper). The 30 designs cross six cycles with
+five ratios $\sigma_\varepsilon/\sigma_\delta$ of the standard deviations of the trend and cycle shocks:
+
+```{r designs}
+mhp_designs(
+    paper = "2017"
+  )
+```
+
+`mhp_simulate()` draws one series. With `trend = "nonlinear"` the drift of the trend varies smoothly over the
+sample; with `aggregate = "average"` quarterly values are averaged to annual ones and the HP filter uses
+$\lambda = 100$.
+
+```{r one, fig.height = 4}
+s <-
+  mhp_simulate(
+      T         = 200
+    , sd_ratio  = 1
+    , ar        = c(1.2, -0.4)
+    , sd_cycle  = 1
+    , drift     = 0.5
+    , trend     = "linear"
+    , aggregate = "none"
+    , seed      = 1
+    )
+s
+```
+
+For each replicate the three filters estimate the cycle, and the root mean square error against the true cycle is
+taken over the whole series, the central 80% and the first and last 10%.
+
+```{r small}
+sim <-
+  fmhp_simulation(
+      designs    = mhp_designs(
+          paper = c("2017", "2014")
+        )[c(3, 13, 23)]
+    , n_rep      = 5
+    , T          = 200
+    , trend      = "linear"
+    , aggregate  = "none"
+    , lambda     = NULL
+    , max_lambda = 3000
+    , seed       = 1
+    , form       = "rows"
+    )
+sim$power
+```
+
+# Results
+
+The study ran `r n_rep` replicates of every design in each of eight settings. The share of replicates in which the
+fully modified filter has the smaller RMSE, averaged over the 30 designs:
+
+```{r share}
+power[, .(
+    fmhp_better_hp  = round(x = mean(fmhp_better_hp), digits = 2)
+  , fmhp_better_mhp = round(x = mean(fmhp_better_mhp), digits = 2)
+  , designs_won_hp  = sum(fmhp_better_hp > 0.5)
+  ), by = .(aggregate, trend, form)]
+```
+
+By the noise ratio (quarterly series, linear trend, the form of the MATLAB code):
+
+```{r ratio}
+power[aggregate == "none" & trend == "linear" & form == "rows",
+      .(
+          fmhp_better_hp  = round(x = mean(fmhp_better_hp), digits = 2)
+        , fmhp_better_mhp = round(x = mean(fmhp_better_mhp), digits = 2)
+        ),
+      by = sd_ratio]
+```
+
+and the average RMSE of each filter, over the whole series, the middle and the ends:
+
+```{r rmse}
+rmse[aggregate == "none" & trend == "linear" & form == "rows",
+     .(
+         rmse   = round(x = mean(rmse), digits = 3)
+       , middle = round(x = mean(rmse_middle), digits = 3)
+       , ends   = round(x = mean(rmse_ends), digits = 3)
+       ),
+     by = method]
+```
+
+```{r rmse-plot, fig.height = 5}
+d <- rmse[form == "rows", .(rmse_ends = mean(rmse_ends)), by = .(aggregate, trend, method, sd_ratio)]
+ggplot2::ggplot(
+    data    = d
+  , mapping = ggplot2::aes(x = factor(sd_ratio), y = rmse_ends, colour = method, group = method)
+  ) +
+  ggplot2::geom_line() +
+  ggplot2::geom_point() +
+  ggplot2::facet_grid(
+      rows   = ggplot2::vars(aggregate)
+    , cols   = ggplot2::vars(trend)
+    , scales = "free_y"
+    ) +
+  ggplot2::labs(x = "ratio of the standard deviations of the trend and cycle shocks",
+                y = "RMSE of the cycle at the ends", colour = NULL) +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(legend.position = "bottom")
+```
+
+# Reading the results
+
+```{r summary, include = FALSE}
+q <- rmse[aggregate == "none" & trend == "linear" & form == "rows", .(
+    ends = mean(rmse_ends)
+  , mid  = mean(rmse_middle)
+  ),
+          by = method]
+share_q <- round(100 * power[aggregate == "none" & trend == "linear" & form == "rows", mean(fmhp_better_hp)])
+share_a <- round(100 * power[aggregate == "average" & trend == "linear" & form == "rows", mean(fmhp_better_hp)])
+won     <- power[, sum(fmhp_better_hp > 0.5)]
+```
+
+The tables above are the evidence; the points below only summarise them.
+
+* The paper reports (Table 1) that the fully modified filter beats the HP filter in 100% of the replicates of every
+  design and every setting. Here it has the smaller RMSE in `r share_q`% of the replicates for quarterly series
+  with a linear trend and in `r share_a`% for series averaged to annual data, and it beats the HP filter in more
+  than half of the replicates in `r won` of the `r nrow(power)` combinations of design and setting.
+* The difference is largest at the ends, where the method is meant to help: for quarterly series with a linear
+  trend the RMSE at the ends is `r round(q[method == "HP", ends], 2)` for the HP filter and
+  `r round(q[method == "Fully modified HP", ends], 2)` for the fully modified filter, against
+  `r round(q[method == "HP", mid], 2)` and `r round(q[method == "Fully modified HP", mid], 2)` in the middle.
+* The loss that chooses the end-point weights measures how far the gain at each date is from the gain in the middle;
+  it does not depend on the data and does not measure how close the estimated cycle is to the true one. A likely
+  reason for the result: raising $\lambda$ near the ends makes the trend stiffer there, so the estimated cycle takes
+  in more of the trend shocks.
+* The filter used here is the one of the authors' MATLAB code (the tests check it to $10^{-8}$), so the difference
+  does not come from the implementation. It can come from the design: the paper does not fully report how its
+  trends were drawn, the length of its series or how its RMSE was computed, so these results are not a
+  reproduction of its Tables 1 and 2. They are `r n_rep` replicates per design; the shares are rough to a few
+  percentage points.
+* The two forms of the end-point weights give similar results.
+
+To rerun the study with more replicates:
+
+```{r rerun, eval = FALSE}
+# from the package folder; 100 replicates take about three hours
+system2(command = "Rscript", args = c("tools/simulation-study.R", "100"))
+```
+
+# References
+
+Choudhary, M. A., Hanif, M. N. and Iqbal, J. (2014). On smoothing macroeconomic time series using the modified HP
+filter. *Applied Economics*, 46(19), 2205--2214.
+
+Hanif, M. N., Iqbal, J. and Choudhary, M. A. (2017). Fully modified HP filter. *SBP Working Paper Series*, No. 88,
+State Bank of Pakistan.
